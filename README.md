@@ -29,5 +29,6 @@ We'll *rarely* be using eTL on this course!
 ## Assignments
 * (Mar. 10) Assignment 1 has been released. See [Assignment 1 Directory](assignments/assignment1) for details.
 * (Mar. 19) Assignment 2 has been released. See [Assignment 2 Directory](assignments/assignment2) for details.
+* (Mar. 29) Assignment 3 has been released. See [Assignment 3 Directory](assignments/assignment3) for details.
 
 ## Projects

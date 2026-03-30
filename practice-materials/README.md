@@ -2,6 +2,7 @@
 
 ### Contents
 Note: More materials will be added as the semester goes on!
+* materials: supplementary resources
 * slides: practice session slides
 * scripts/linux: installation script for ubuntu system
 * scripts/macos: installation script for MacOS system
@@ -11,3 +12,4 @@ Note: More materials will be added as the semester goes on!
 * 2026/03/06: Uploaded practice session slides 00~01 & updated installation scripts again
 * 2026/03/12: Uploaded practice session slides 02
 * 2026/03/19: Uploaded practice session slides 03~05
+* 2026/03/26: Uploaded practice session slides 06~10
