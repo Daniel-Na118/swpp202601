@@ -33,3 +33,4 @@ We'll *rarely* be using eTL on this course!
 * (Mar. 30) Assignment 4 has been released. See [Assignment 4 Directory](assignments/assignment4) for details.
 
 ## Projects
+* (Apr. 17) Project repositories are released. Visit [the announcement](https://github.com/snu-sf-class/swpp202601/discussions/24) for details.
