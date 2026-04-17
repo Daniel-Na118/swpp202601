@@ -1,0 +1,209 @@
+From 182878585a225e2f56587d68d2d8b622902adedf Mon Sep 17 00:00:00 2001
+From: strikef <seunghyeon.nam@sf.snu.ac.kr>
+Date: Fri, 17 Apr 2026 13:47:48 +0900
+Subject: [PATCH] SWPP202601 spec
+
+---
+ CMakeLists.txt     |   2 +-
+ tools/alive-tv.cpp | 151 ++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 149 insertions(+), 4 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0240963c..837bb9c6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.10)
++cmake_minimum_required(VERSION 3.13)
+ include(ProcessorCount)
+ 
+ project(Alive2)
+diff --git a/tools/alive-tv.cpp b/tools/alive-tv.cpp
+index aced0fec..41fcdac1 100644
+--- a/tools/alive-tv.cpp
++++ b/tools/alive-tv.cpp
+@@ -12,10 +12,9 @@
+ 
+ #include "llvm/Analysis/TargetLibraryInfo.h"
+ #include "llvm/Bitcode/BitcodeReader.h"
+-#include "llvm/InitializePasses.h"
+-#include "llvm/IR/LLVMContext.h"
+ #include "llvm/IR/Function.h"
+-#include "llvm/IR/Module.h"
++#include "llvm/IR/IRBuilder.h"
++#include "llvm/IR/LLVMContext.h"
+ #include "llvm/IR/LegacyPassManager.h"
+ #include "llvm/IR/Verifier.h"
+ #include "llvm/IRReader/IRReader.h"
+@@ -68,8 +67,152 @@ llvm::cl::opt<string>
+                            "https://llvm.org/docs/NewPassManager.html#invoking-opt"),
+             llvm::cl::cat(alive_cmdargs), llvm::cl::init("O2"));
+ 
++using namespace std::string_literals;
++
++const std::unordered_map<std::string, std::size_t> aload_intrinsics = {
++    {"aload_i8", 8},
++    {"aload_i16", 16},
++    {"aload_i32", 32},
++    {"aload_i64", 64},
++};
++
++const std::unordered_map<std::string, std::size_t> oadd_intrinsics = {
++    {"oadd_i1", 1},   {"oadd_i8", 8},   {"oadd_i16", 16},
++    {"oadd_i32", 32}, {"oadd_i64", 64},
++};
++
++const std::unordered_map<std::string, std::size_t> osub_intrinsics = {
++    {"osub_i1", 1},   {"osub_i8", 8},   {"osub_i16", 16},
++    {"osub_i32", 32}, {"osub_i64", 64},
++};
++
++bool isSWPPALoad(llvm::CallInst *CI) {
++  const auto itr =
++      aload_intrinsics.find(CI->getCalledFunction()->getName().str());
++  return itr != aload_intrinsics.end() &&
++         CI->getCalledFunction()->getReturnType()->getIntegerBitWidth() ==
++             itr->second;
++}
++
++void replaceSWPPALoad(llvm::CallInst *CI) {
++  auto op = CI->getArgOperand(0);
++  auto ty = CI->getType();
++  llvm::IRBuilder<> builder(CI->getContext());
++  builder.SetInsertPoint(CI);
++  auto inst = builder.CreateLoad(ty, op, "aload");
++  CI->replaceAllUsesWith(inst);
++  CI->eraseFromParent();
++}
++
++bool isSWPPOAdd(llvm::CallInst *CI) {
++  const auto itr =
++      oadd_intrinsics.find(CI->getCalledFunction()->getName().str());
++  return itr != oadd_intrinsics.end() &&
++         CI->getCalledFunction()->getReturnType()->getIntegerBitWidth() ==
++             itr->second;
++}
++
++void replaceSWPPOAdd(llvm::CallInst *CI) {
++  const auto op1 = CI->getArgOperand(0);
++  const auto op2 = CI->getArgOperand(1);
++  llvm::IRBuilder<> builder(CI->getContext());
++  builder.SetInsertPoint(CI);
++  auto inst = builder.CreateBinOp(llvm::Instruction::Add, op1, op2, "oadd");
++  CI->replaceAllUsesWith(inst);
++  CI->eraseFromParent();
++}
++
++bool isSWPPOSub(llvm::CallInst *CI) {
++  const auto itr =
++      osub_intrinsics.find(CI->getCalledFunction()->getName().str());
++  return itr != osub_intrinsics.end() &&
++         CI->getCalledFunction()->getReturnType()->getIntegerBitWidth() ==
++             itr->second;
++}
++
++void replaceSWPPOSub(llvm::CallInst *CI) {
++  const auto op1 = CI->getArgOperand(0);
++  const auto op2 = CI->getArgOperand(1);
++  llvm::IRBuilder<> builder(CI->getContext());
++  builder.SetInsertPoint(CI);
++  auto inst = builder.CreateBinOp(llvm::Instruction::Sub, op1, op2, "osub");
++  CI->replaceAllUsesWith(inst);
++  CI->eraseFromParent();
++}
++
++bool isSWPPAssertEq(llvm::CallInst *CI) {
++  return CI->getCalledFunction()->getName().starts_with("assert_eq");
++}
++
++void replaceSWPPAssertEq(llvm::CallInst *CI) {
++  const auto terminate_block_name = "assert_terminate"s;
++  bool should_insert_terminate_block = true;
++  llvm::BasicBlock *terminate_bb = nullptr;
++  for (auto &BB : *CI->getFunction()) {
++    if (BB.getName() == terminate_block_name) {
++      should_insert_terminate_block = false;
++      terminate_bb = &BB;
++      break;
++    }
++  }
++
++  if (should_insert_terminate_block) {
++    terminate_bb = llvm::BasicBlock::Create(
++        CI->getContext(), terminate_block_name, CI->getFunction());
++    new llvm::UnreachableInst(CI->getContext(), terminate_bb);
++  }
++
++  auto v1 = CI->getArgOperand(0);
++  auto v2 = CI->getArgOperand(1);
++  auto cmp =
++      llvm::ICmpInst::Create(llvm::ICmpInst::ICmp, llvm::ICmpInst::ICMP_EQ, v1,
++                             v2, "assert_eq", CI->getIterator());
++
++  auto bb_prev = CI->getParent();
++  auto bb_next = bb_prev->splitBasicBlock(CI, "");
++  auto auto_br = bb_prev->getTerminator();
++  auto branch = llvm::BranchInst::Create(bb_next, terminate_bb, cmp);
++  auto_br->replaceAllUsesWith(branch);
++  CI->eraseFromParent();
++}
++
++bool isSWPPIntrinsicCall(llvm::CallInst *CI) {
++  return isSWPPALoad(CI) || isSWPPOAdd(CI) || isSWPPOSub(CI) ||
++         isSWPPAssertEq(CI);
++}
+ 
++void replaceSWPPIntrinsicCall(llvm::CallInst *CI) {
++  if (isSWPPALoad(CI)) {
++    replaceSWPPALoad(CI);
++  } else if (isSWPPOAdd(CI)) {
++    replaceSWPPOAdd(CI);
++  } else if (isSWPPOSub(CI)) {
++    replaceSWPPOSub(CI);
++  } else if (isSWPPAssertEq(CI)) {
++    replaceSWPPAssertEq(CI);
++  }
++}
++
++void replaceSWPPIntrinsics(llvm::Module *M) {
++  std::vector<llvm::CallInst *> intrinsics;
++
++  for (auto &F : M->functions()) {
++    for (auto &BB : F) {
++      for (auto &I : BB) {
++        if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)) {
++          if (isSWPPIntrinsicCall(CI)) {
++            intrinsics.push_back(CI);
++          }
++        }
++      }
++    }
++  }
++
++  for (auto CI : intrinsics) {
++    replaceSWPPIntrinsicCall(CI);
++  }
+ }
++} // namespace
+ 
+ unique_ptr<Cache> cache;
+ 
+@@ -122,6 +265,7 @@ and "tgt5" will unused.
+     cerr << "Could not read bitcode from '" << opt_file1 << "'\n";
+     return -1;
+   }
++  replaceSWPPIntrinsics(M1.get());
+ 
+ #define ARGS_MODULE_VAR M1
+ # include "llvm_util/cmd_args_def.h"
+@@ -198,6 +342,7 @@ and "tgt5" will unused.
+       *out << "Could not read bitcode from '" << opt_file2 << "'\n";
+       return -1;
+     }
++    replaceSWPPIntrinsics(M2.get());
+   }
+ 
+   if (M1.get()->getTargetTriple() != M2.get()->getTargetTriple()) {
+-- 
+2.47.3
+
