@@ -5,6 +5,7 @@ Note: More materials will be added as the semester goes on!
 * materials: supplementary resources
 * slides: practice session slides
 * scripts/linux: installation script for ubuntu system
+* scripts/linux/arch: installation scripts for Arch Linux system
 * scripts/macos: installation script for MacOS system
 
 ### Update Notes
