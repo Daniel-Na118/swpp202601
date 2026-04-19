@@ -4,8 +4,16 @@
 LLVM_DIR=~/opt/llvm-22.1.0
 # Specify Z3 installation directory (Z3 will be installed here!)
 Z3_DIR=~/opt/z3-4.16.0
+CLANG=$LLVM_DIR/bin/clang
+CLANGXX=$LLVM_DIR/bin/clang++
 
 export PATH="$LLVM_DIR/bin:$PATH"
+
+if [[ ! -x "$CLANG" || ! -x "$CLANGXX" ]]; then
+    echo "[SCRIPT] clang/clang++ not found under $LLVM_DIR/bin"
+    echo "[SCRIPT] Install LLVM first (practice-materials/scripts/linux/install-llvm.sh)."
+    exit 1
+fi
 
 # install re2c
 sudo apt install re2c
@@ -14,7 +22,7 @@ sudo apt install re2c
 git clone -b z3-4.16.0 https://github.com/Z3Prover/z3.git --depth=1
 cd z3
 cmake -GNinja -Bbuild \
-    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_CXX_COMPILER=$CLANGXX \
     -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
     -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -Wl,-rpath,${LLVM_DIR}/lib/x86_64-unknown-linux-gnu" \
     -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld -Wl,-rpath,${LLVM_DIR}/lib/x86_64-unknown-linux-gnu" \
@@ -31,8 +39,8 @@ cd alive2
 git checkout 0dc2be5f04ccb61caebb909a610968cb2348f196
 cmake -GNinja -Bbuild \
     -DBUILD_TV=ON \
-    -DCMAKE_C_COMPILER=clang \
-    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_C_COMPILER=$CLANG \
+    -DCMAKE_CXX_COMPILER=$CLANGXX \
     -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
     -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -Wl,-rpath,${LLVM_DIR}/lib/x86_64-unknown-linux-gnu" \
     -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld -Wl,-rpath,${LLVM_DIR}/lib/x86_64-unknown-linux-gnu" \

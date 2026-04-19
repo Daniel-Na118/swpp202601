@@ -5,8 +5,8 @@ LLVM_VER="22.1.0"
 LLVM_DIR=~/opt/llvm-$LLVM_VER
 
 echo "[SCRIPT] Determining distro..."
-DISTRO=$(cat /etc/*elease | grep DISTRIB_ID | cut -c 12-)
-if [[ $DISTRO = "Ubuntu" ]]; then
+DISTRO=$(grep '^ID=' /etc/os-release | cut -d '=' -f2 | tr -d '"')
+if [[ $DISTRO = "ubuntu" ]]; then
     echo "[SCRIPT] Using Ubuntu!"
     echo "[SCRIPT] Changing APT mirror for faster download... [requires sudo]"
     sudo apt update
@@ -48,14 +48,22 @@ fi
 MACHINE_ARCH=$(uname -m)
 LIBCXX_INCLUDE_PATH=$LLVM_DIR/include/c++/v1
 LIBCXX_LIBRARY_PATH=$LLVM_DIR/lib/$MACHINE_ARCH-unknown-linux-gnu
+CLANG=$LLVM_DIR/bin/clang
+CLANGXX=$LLVM_DIR/bin/clang++
+
+if [[ ! -x "$CLANG" || ! -x "$CLANGXX" ]]; then
+    echo "[SCRIPT] clang/clang++ not found under $LLVM_DIR/bin"
+    echo "[SCRIPT] Make sure the libc++ bootstrap build finished successfully."
+    exit 1
+fi
 
 echo "[SCRIPT] Building and installing LLVM..."
 sleep 2
 BUILD_DIR=build-$LLVM_VER
 export PATH=$LLVM_DIR/bin:$PATH
 cmake -G Ninja -S llvm -B $BUILD_DIR \
-    -DCMAKE_C_COMPILER=clang \
-    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_C_COMPILER=$CLANG \
+    -DCMAKE_CXX_COMPILER=$CLANGXX \
     -DCMAKE_INCLUDE_PATH="-I$LIBCXX_INCLUDE_PATH" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$LIBCXX_LIBRARY_PATH -Wl,-rpath,$LIBCXX_LIBRARY_PATH" \
     -DCMAKE_SHARED_LINKER_FLAGS="-L$LIBCXX_LIBRARY_PATH -Wl,-rpath,$LIBCXX_LIBRARY_PATH" \
